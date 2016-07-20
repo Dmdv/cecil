@@ -35,11 +35,11 @@ namespace Mono.Cecil {
 		internal IMetadataImporterProvider metadata_importer_provider;
 #if !PCL
 		internal IReflectionImporterProvider reflection_importer_provider;
+		bool read_symbols;
 #endif
 #endif
 		Stream symbol_stream;
 		ISymbolReaderProvider symbol_reader_provider;
-		bool read_symbols;
 		bool projections;
 		bool in_memory;
 
@@ -87,10 +87,12 @@ namespace Mono.Cecil {
 			set { symbol_reader_provider = value; }
 		}
 
+#if !PCL
 		public bool ReadSymbols {
 			get { return read_symbols; }
 			set { read_symbols = value; }
 		}
+#endif
 
 		public bool ApplyWindowsRuntimeProjections {
 			get { return projections; }
@@ -197,8 +199,8 @@ namespace Mono.Cecil {
 
 		Stream symbol_stream;
 		ISymbolWriterProvider symbol_writer_provider;
-		bool write_symbols;
 #if !PCL
+		bool write_symbols;
 		SR.StrongNameKeyPair key_pair;
 #endif
 		public Stream SymbolStream {
@@ -211,11 +213,12 @@ namespace Mono.Cecil {
 			set { symbol_writer_provider = value; }
 		}
 
+#if !PCL
 		public bool WriteSymbols {
 			get { return write_symbols; }
 			set { write_symbols = value; }
 		}
-#if !PCL
+
 		public SR.StrongNameKeyPair StrongNameKeyPair {
 			get { return key_pair; }
 			set { key_pair = value; }
@@ -1038,7 +1041,9 @@ namespace Mono.Cecil {
 			if (provider == null)
 				throw new InvalidOperationException ();
 
-			ReadSymbols (provider.GetSymbolReader (this, file_name));
+			var reader = provider.GetSymbolReader (this, file_name);
+			if (reader != null)
+				ReadSymbols (reader);
 		}
 #endif
 
@@ -1082,10 +1087,7 @@ namespace Mono.Cecil {
 
 		static Stream GetFileStream (string fileName, FileMode mode, FileAccess access, FileShare share)
 		{
-			if (fileName == null)
-				throw new ArgumentNullException ("fileName");
-			if (fileName.Length == 0)
-				throw new ArgumentException ();
+			Mixin.CheckFileName (fileName);
 
 			return new FileStream (fileName, mode, access, share);
 		}
@@ -1147,6 +1149,14 @@ namespace Mono.Cecil {
 	}
 
 	static partial class Mixin {
+
+		public static void CheckFileName (string fileName)
+		{
+			if (fileName == null)
+				throw new ArgumentNullException ("fileName");
+			if (fileName.Length == 0)
+				throw new ArgumentException ();
+		}
 
 		public static void CheckStream (object stream)
 		{

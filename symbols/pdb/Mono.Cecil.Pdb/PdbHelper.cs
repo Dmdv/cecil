@@ -31,22 +31,22 @@ namespace Mono.Cecil.Pdb {
 			return writer;
 		}
 #endif
-
-		public static string GetPdbFileName (string assemblyFileName)
-		{
-			return Path.ChangeExtension (assemblyFileName, ".pdb");
-		}
 	}
 
 	public class PdbReaderProvider : ISymbolReaderProvider {
 
 		public ISymbolReader GetSymbolReader (ModuleDefinition module, string fileName)
 		{
-			return new PdbReader (File.OpenRead (PdbHelper.GetPdbFileName (fileName)));
+			Mixin.CheckModule (module);
+
+			return new PdbReader (File.OpenRead (Mixin.GetPdbFileName (fileName)));
 		}
 
 		public ISymbolReader GetSymbolReader (ModuleDefinition module, Stream symbolStream)
 		{
+			Mixin.CheckModule (module);
+			Mixin.CheckStream (symbolStream);
+
 			return new PdbReader (symbolStream);
 		}
 	}
@@ -57,7 +57,7 @@ namespace Mono.Cecil.Pdb {
 
 		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, string fileName)
 		{
-			return new PdbWriter (module, PdbHelper.CreateWriter (module, PdbHelper.GetPdbFileName (fileName)));
+			return new PdbWriter (module, PdbHelper.CreateWriter (module, Mixin.GetPdbFileName (fileName)));
 		}
 
 		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, Stream symbolStream)

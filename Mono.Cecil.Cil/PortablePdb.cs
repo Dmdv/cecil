@@ -19,19 +19,56 @@ using Mono.Cecil.PE;
 
 namespace Mono.Cecil.Cil {
 
+	public sealed class DefaultSymbolReaderProvider : ISymbolReaderProvider {
+
+		public ISymbolReader GetSymbolReader (ModuleDefinition module, string fileName)
+		{
+			Mixin.CheckModule (module);
+			Mixin.CheckFileName (fileName);
+
+			var pdb_file = Mixin.GetPdbFileName (fileName);
+			if (File.Exists (pdb_file) && IsPortablePdb (pdb_file))
+				return new PortablePdbReaderProvider ().GetSymbolReader (module, fileName);
+
+#if !PCL
+			try {
+				var platform_reader_provider = SymbolProvider.GetPlatformReaderProvider ();
+				if (platform_reader_provider != null)
+					return platform_reader_provider.GetSymbolReader (module, fileName);
+			} catch (Exception) {
+				return null;
+			}
+#endif
+			return null;
+
+		}
+
+		static bool IsPortablePdb (string pdbFile)
+		{
+			using (var file = new FileStream (pdbFile, FileMode.Open, FileAccess.Read)) {
+				var reader = new BinaryReader (file);
+				return reader.ReadUInt32 () == 0x424a5342;
+			}
+		}
+
+		public ISymbolReader GetSymbolReader (ModuleDefinition module, Stream symbolStream)
+		{
+			Mixin.CheckModule (module);
+			Mixin.CheckStream (symbolStream);
+
+			return new PortablePdbReaderProvider ().GetSymbolReader (module, symbolStream);
+		}
+	}
+
 	public sealed class PortablePdbReaderProvider : ISymbolReaderProvider {
 
 		public ISymbolReader GetSymbolReader (ModuleDefinition module, string fileName)
 		{
 			Mixin.CheckModule (module);
+			Mixin.CheckFileName (fileName);
 
-			using (var file = File.OpenRead (GetPdbFileName (fileName)))
+			using (var file = File.OpenRead (Mixin.GetPdbFileName (fileName)))
 				return GetSymbolReader (module, file, file.Name);
-		}
-
-		static string GetPdbFileName (string assemblyFileName)
-		{
-			return Path.ChangeExtension (assemblyFileName, ".pdb");
 		}
 
 		public ISymbolReader GetSymbolReader (ModuleDefinition module, Stream symbolStream)
@@ -138,18 +175,41 @@ namespace Mono.Cecil.Cil {
 
 #if !READ_ONLY
 
+	public sealed class DefaultSymbolWriterProvider : ISymbolWriterProvider {
+
+		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, string fileName)
+		{
+			Mixin.CheckModule (module);
+			Mixin.CheckFileName (fileName);
+
+#if !PCL
+			if (module.SymbolReader != null && !(module.SymbolReader is PortablePdbReader)) {
+				var platform_writer_provider = SymbolProvider.GetPlatformWriterProvider ();
+				if (platform_writer_provider != null)
+					return platform_writer_provider.GetSymbolWriter (module, fileName);
+			}
+
+#endif
+			return new PortablePdbWriterProvider ().GetSymbolWriter (module, fileName);
+		}
+
+		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, Stream symbolStream)
+		{
+			Mixin.CheckModule (module);
+			Mixin.CheckStream (symbolStream);
+
+			return new PortablePdbWriterProvider ().GetSymbolWriter (module, symbolStream);
+		}
+	}
+
 	public sealed class PortablePdbWriterProvider : ISymbolWriterProvider
 	{
 		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, string fileName)
 		{
 			Mixin.CheckModule (module);
+			Mixin.CheckFileName (fileName);
 
-			return GetSymbolWriter (module, File.OpenWrite (GetPdbFileName (fileName)));
-		}
-
-		static string GetPdbFileName (string assemblyFileName)
-		{
-			return Path.ChangeExtension (assemblyFileName, ".pdb");
+			return GetSymbolWriter (module, File.OpenWrite (Mixin.GetPdbFileName (fileName)));
 		}
 
 		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, Stream symbolStream)
